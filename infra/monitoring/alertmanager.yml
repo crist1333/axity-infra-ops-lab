@@ -1,0 +1,73 @@
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@axity.com'
+  slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
+  receiver: 'default-receiver'
+  routes:
+  - match:
+      severity: critical
+    receiver: 'critical-alerts'
+    group_wait: 10s
+    repeat_interval: 30m
+  - match:
+      severity: warning
+    receiver: 'warning-alerts'
+    repeat_interval: 2h
+
+receivers:
+- name: 'default-receiver'
+  webhook_configs:
+  - url: 'http://webhook:5000/alert'
+    send_resolved: true
+    http_config:
+      basic_auth:
+        username: 'webhook_user'
+        password: 'webhook_pass'
+
+- name: 'critical-alerts'
+  webhook_configs:
+  - url: 'http://webhook:5000/alert'
+    send_resolved: true
+  slack_configs:
+  - channel: '#critical-alerts'
+    username: 'Axity AlertManager'
+    icon_emoji: ':rotating_light:'
+    title: 'CRITICAL Alert'
+    text: |
+      {{ range .Alerts }}
+      *{{ .Annotations.summary }}*
+      {{ .Annotations.description }}
+      *Service:* {{ .Labels.service }}
+      {{ end }}
+
+- name: 'warning-alerts'
+  webhook_configs:
+  - url: 'http://webhook:5000/alert'
+    send_resolved: true
+  slack_configs:
+  - channel: '#alerts'
+    username: 'Axity AlertManager'
+    icon_emoji: ':warning:'
+    title: 'Warning Alert'
+    text: |
+      {{ range .Alerts }}
+      {{ .Annotations.summary }}
+      {{ .Annotations.description }}
+      {{ end }}
+
+inhibit_rules:
+- source_match:
+    severity: 'critical'
+  target_match:
+    severity: 'warning'
+  equal: ['alertname', 'service']

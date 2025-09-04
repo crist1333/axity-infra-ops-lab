@@ -1,0 +1,44 @@
+---
+- name: Create service user for Axity operations
+  hosts: all
+  become: yes
+  vars:
+    service_user: svc_axity
+    service_groups:
+      - docker
+      - sudo
+
+  tasks:
+    - name: Create service user svc_axity
+      user:
+        name: "{{ service_user }}"
+        comment: "Service Account for Axity Infrastructure Operations"
+        shell: /bin/bash
+        create_home: yes
+        state: present
+        groups: "{{ service_groups }}"
+        append: yes
+
+    - name: Create .ssh directory for service user
+      file:
+        path: "/home/{{ service_user }}/.ssh"
+        state: directory
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: '0700'
+
+    - name: Set up sudo access for service user (passwordless)
+      lineinfile:
+        path: /etc/sudoers.d/{{ service_user }}
+        line: "{{ service_user }} ALL=(ALL) NOPASSWD:ALL"
+        create: yes
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
+    - name: Verify user creation
+      command: id {{ service_user }}
+      register: user_info
+      
+    - name: Display user information
+      debug:
+        msg: "User {{ service_user }} created: {{ user_info.stdout }}"

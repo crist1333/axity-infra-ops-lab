@@ -1,0 +1,58 @@
+---
+- name: Install Kubernetes Tools (k3d, kubectl, helm)
+  hosts: all
+  become: yes
+  vars:
+    kubectl_version: "v1.28.2"
+
+  tasks:
+    - name: Install curl (prerequisite)
+      apt:
+        name: curl
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Download and install k3d
+      shell: |
+        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      args:
+        creates: /usr/local/bin/k3d
+
+    - name: Get latest stable kubectl version
+      uri:
+        url: https://dl.k8s.io/release/stable.txt
+        return_content: yes
+      register: kubectl_stable_version
+      
+    - name: Download kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_stable_version.content | trim }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Install Helm
+      shell: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+
+    - name: Verify k3d installation
+      command: k3d version
+      register: k3d_version
+      
+    - name: Verify kubectl installation
+      command: kubectl version --client
+      register: kubectl_version_output
+
+    - name: Verify Helm installation
+      command: helm version
+      register: helm_version
+
+    - name: Display installed versions
+      debug:
+        msg:
+          - "k3d: {{ k3d_version.stdout }}"
+          - "kubectl: {{ kubectl_version_output.stdout }}"
+          - "helm: {{ helm_version.stdout }}"

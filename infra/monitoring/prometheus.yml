@@ -1,0 +1,39 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "/etc/prometheus/alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'axity-lab-app'
+    static_configs:
+      - targets: ['app:8000']
+    scrape_interval: 5s
+    metrics_path: '/metrics'
+    scrape_timeout: 5s
+
+  - job_name: 'webhook-receiver'
+    static_configs:
+      - targets: ['webhook:5000']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    scrape_timeout: 5s
+
+  - job_name: 'glpi'
+    static_configs:
+      - targets: ['glpi-app:80']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: '/'
+    scheme: http

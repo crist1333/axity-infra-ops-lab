@@ -1,0 +1,60 @@
+groups:
+- name: axity_application_alerts
+  rules:
+  - alert: AppDown
+    expr: up{job="axity-lab-app"} == 0
+    for: 30s
+    labels:
+      severity: critical
+      service: axity-lab-app
+      team: infrastructure
+    annotations:
+      summary: "Axity Lab Application is down"
+      description: "The Axity Lab FastAPI application has been down for more than 30 seconds."
+      runbook_url: "https://wiki.axity.com/runbooks/app-down"
+
+  - alert: WebhookReceiverDown
+    expr: up{job="webhook-receiver"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: webhook-receiver
+      team: infrastructure
+    annotations:
+      summary: "Webhook receiver is down"
+      description: "The webhook receiver service has been down for more than 1 minute."
+
+  - alert: HighResponseTime
+    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+    for: 2m
+    labels:
+      severity: warning
+      service: axity-lab-app
+      team: infrastructure
+    annotations:
+      summary: "High response time detected"
+      description: "95th percentile response time is above 500ms for 2 minutes."
+
+- name: axity_infrastructure_alerts
+  rules:
+  - alert: PrometheusDown
+    expr: up{job="prometheus"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: prometheus
+      team: infrastructure
+    annotations:
+      summary: "Prometheus is down"
+      description: "Prometheus monitoring system is down."
+
+  - alert: GLPIDown
+    expr: up{job="glpi"} == 0
+    for: 2m
+    labels:
+      severity: warning
+      service: glpi
+      team: infrastructure
+    annotations:
+      summary: "GLPI system is down"
+      description: "GLPI ITSM system has been unreachable for more than 2 minutes."

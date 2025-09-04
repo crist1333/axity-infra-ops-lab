@@ -1,0 +1,104 @@
+version: '3.8'
+
+networks:
+  monitoring:
+    driver: bridge
+  glpi-network:
+    external: true
+
+volumes:
+  prometheus_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: axity-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - monitoring
+      - glpi-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    container_name: axity-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9093/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  webhook:
+    build:
+      context: ../../app/webhook_receiver
+      dockerfile: Dockerfile
+    container_name: axity-webhook-receiver
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      GLPI_URL: http://glpi-app:80
+      GLPI_APP_TOKEN: UlL9qzfW6GuTn87w5n28syUhuaDpivTNnDqhsXvM
+      GLPI_USER_TOKEN: mQHCNj0Bpqr2GSwfTfvg2DGn2H8rFilgVNTx8ZoB
+      GLPI_USERNAME: glpi
+      GLPI_PASSWORD: glpi
+      LOG_LEVEL: INFO
+    networks:
+      - monitoring
+      - glpi-network
+    depends_on:
+      - alertmanager
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  app:
+    build:
+      context: ../../infra/docker/app
+      dockerfile: Dockerfile
+    container_name: axity-lab-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
